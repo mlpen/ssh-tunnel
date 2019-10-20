@@ -69,7 +69,6 @@ if __name__ == "__main__":
         for pair in port_pairs:
             # mapping local port pair[0] to remote port pair[1]
             partial_cmd.extend(["-R", "%s:%d:localhost:%d" % (server_addr, pair[1], pair[0])])
-        cmd = ["ssh", "—NT"]
         cmd = ["ssh", "-N", "-T"]  + partial_cmd + ["%s@%s" % (username, server_addr)]
         print("%s forwarding ports %s..." % (get_time(), " ".join([str(pair[0]) + ":" + str(pair[1]) for pair in port_pairs])))
         proc = subprocess.Popen(cmd)
@@ -87,7 +86,7 @@ if __name__ == "__main__":
     while True:
         try:
             echo = EchoConn(server_addr, remote_echo_port)
-            tunnel = port_forward(username, server_addr, port_pairs + [(echo.local_port, remote_echo_port)])
+            tunnel = port_forward(username, server_addr, [(echo.local_port, remote_echo_port)] + port_pairs)
             echo.connect()
         except Exception as e:
             print("%s exception: %s" % (get_time(), str(e)))

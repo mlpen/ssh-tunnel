@@ -16,7 +16,7 @@ class EchoConn():
         self.server_addr = server_addr
         self.remote_port = remote_port
 
-        print("%s creating echo server..." % (get_time()))
+        print("%s Creating echo server..." % (get_time()), end = "")
 
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind(('', 0))
@@ -24,43 +24,66 @@ class EchoConn():
         self.server.listen(1)
         self.server.settimeout(timeout)
         self.local_port = port
+        self.suppress_normal_echo_log = False
 
-        print("%s created echo server listening on port %d" % (get_time(), self.local_port))
+        self.client = None
+        self.conn = None
+
+        self.connected = False
+
+        print("Completed")
 
     def connect(self):
-        print("%s connecting echo server through %s:%d..." % (get_time(), self.server_addr, self.remote_port))
+        print("%s Connecting echo server through %s:%d..." % (get_time(), self.server_addr, self.remote_port), end = "")
 
-        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client.connect((self.server_addr, self.remote_port))
-        self.client.settimeout(timeout)
+        try:
+            self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.client.connect((self.server_addr, self.remote_port))
+            self.client.settimeout(timeout)
 
-        conn, addr = self.server.accept()
-        conn.settimeout(timeout)
-        self.conn = conn
+            conn, addr = self.server.accept()
+            conn.settimeout(timeout)
+            self.conn = conn
 
-        print("%s connected echo server" % (get_time()))
+            print("Completed")
+
+            self.connected = True
+        except Exception as e:
+            print("Failed")
+            print("%s Exception: %s" % (get_time(), str(e)))
+
+            self.connected = False
+
+        return self.connected
 
     def send_echo(self):
         try:
-            print("%s sending echo..." % (get_time()), end = "")
+            if not self.suppress_normal_echo_log:
+                print("%s Testing connection: sending echo..." % (get_time()), end = "")
+
             timestamp = str(time.time())
             self.conn.send(timestamp.encode("ascii"))
             echo = self.client.recv(64)
             echo = echo.decode("ascii")
             match = timestamp == echo
-            print("received echo, match = %s" % (str(match)), end = "\r")
+
+            if not self.suppress_normal_echo_log:
+                print("Match = %s" % (str(match)))
+
+            self.suppress_normal_echo_log = True
+
             return match
         except socket.timeout as e:
             print("")
-            print("%s timeout: %s" % (get_time(), str(e)))
+            print("%s Timeout: %s Loss connection" % (get_time(), str(e)))
             return False
 
     def disconnect(self):
-        print("%s closing connection..." % (get_time()))
-        self.client.close()
-        self.conn.close()
-        self.server.close()
-        print("%s closed connection..." % (get_time()))
+        print("%s Closing echo connection..." % (get_time()), end = "")
+        for to_close in [self.client, self.conn, self.server]:
+            if to_close != None:
+                to_close.close()
+        print("Completed")
 
 
 if __name__ == "__main__":
@@ -70,10 +93,10 @@ if __name__ == "__main__":
             # mapping local port pair[0] to remote port pair[1]
             partial_cmd.extend(["-R", "%s:%d:localhost:%d" % (server_addr, pair[1], pair[0])])
         cmd = ["ssh", "-N", "-T"]  + partial_cmd + ["%s@%s" % (username, server_addr)]
-        print("%s forwarding ports %s..." % (get_time(), " ".join([str(pair[0]) + ":" + str(pair[1]) for pair in port_pairs])))
+        print("%s Forwarding ports %s..." % (get_time(), " ".join([str(pair[0]) + ":" + str(pair[1]) for pair in port_pairs])), end = "")
         proc = subprocess.Popen(cmd)
         time.sleep(wait_time)
-        print("%s forwarded ports" % (get_time()))
+        print("Completed")
         return proc
 
     username = sys.argv[1]
@@ -89,28 +112,28 @@ if __name__ == "__main__":
             tunnel = port_forward(username, server_addr, [(echo.local_port, remote_echo_port)] + port_pairs)
             echo.connect()
         except Exception as e:
-            print("%s exception: %s" % (get_time(), str(e)))
+            print("%s Exception: %s" % (get_time(), str(e)))
 
         try:
-            while True:
+            while echo.connected:
                 if echo.send_echo():
                     time.sleep(echo_interval)
                 else:
                     break
         except Exception as e:
-            print("%s exception: %s" % (get_time(), str(e)))
+            print("%s Exception: %s" % (get_time(), str(e)))
 
         try:
             echo.disconnect()
         except Exception as e:
-            print("%s exception: %s" % (get_time(), str(e)))
+            print("%s Exception: %s" % (get_time(), str(e)))
 
         try:
             tunnel.kill()
         except Exception as e:
-            print("%s exception: %s" % (get_time(), str(e)))
+            print("%s Exception: %s" % (get_time(), str(e)))
 
         try:
             time.sleep(wait_time)
         except Exception as e:
-            print("%s exception: %s" % (get_time(), str(e)))
+            print("%s Exception: %s" % (get_time(), str(e)))
